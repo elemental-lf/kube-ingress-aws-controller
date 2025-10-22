@@ -69,6 +69,7 @@ type Adapter struct {
 	httpRedirectToHTTPS         bool
 	nlbCrossZone                bool
 	nlbHTTPEnabled              bool
+	nlbProxyProtocolV2Enabled   bool
 	customFilter                string
 	internalDomains             []string
 	denyInternalDomains         bool
@@ -467,6 +468,13 @@ func (a *Adapter) WithNLBCrossZone(nlbCrossZone bool) *Adapter {
 	return a
 }
 
+// WithNLBProxyProtocolV2Enabled returns the receiver adapter after setting the
+// nlbProxyProtocolV2Enabled config.
+func (a *Adapter) WithNLBProxyProtocolV2Enabled(nlbProxyProtocolV2Enabled bool) *Adapter {
+	a.nlbProxyProtocolV2Enabled = nlbProxyProtocolV2Enabled
+	return a
+}
+
 // WithNLBZoneAffinity returns the receiver adapter after setting the
 // nlbZoneAffinity config.
 func (a *Adapter) WithNLBZoneAffinity(nlbZoneAffinity string) *Adapter {
@@ -821,6 +829,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		cwAlarms:                          cwAlarms,
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
+		nlbProxyProtocolV2:                a.nlbProxyProtocolV2Enabled,
 		nlbZoneAffinity:                   a.nlbZoneAffinity,
 		http2:                             http2,
 		tags:                              a.stackTags,
@@ -878,6 +887,7 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		cwAlarms:                          cwAlarms,
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
+		nlbProxyProtocolV2:                a.nlbProxyProtocolV2Enabled,
 		nlbZoneAffinity:                   a.nlbZoneAffinity,
 		http2:                             http2,
 		tags:                              a.stackTags,

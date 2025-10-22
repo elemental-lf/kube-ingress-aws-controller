@@ -191,6 +191,7 @@ type stackSpec struct {
 	cwAlarms                          CloudWatchAlarmList
 	httpRedirectToHTTPS               bool
 	nlbCrossZone                      bool
+	nlbProxyProtocolV2                bool
 	http2                             bool
 	denyInternalDomains               bool
 	denyInternalDomainsResponse       denyResp

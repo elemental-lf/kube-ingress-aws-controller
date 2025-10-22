@@ -474,6 +474,7 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 	healthyThresholdCount, unhealthyThresholdCount := spec.albHealthyThresholdCount, spec.albUnhealthyThresholdCount
 	if spec.loadbalancerType == LoadBalancerTypeNetwork {
 		protocol = "TCP"
+		// NB: If proxy_protocol_v2.enabled == true, AWS also expects PROXY v2 on the health check port for HTTP
 		healthCheckProtocol = "HTTP"
 		// For NLBs the healthy and unhealthy threshold count value must be equal
 		healthyThresholdCount, unhealthyThresholdCount = spec.nlbHealthyThresholdCount, spec.nlbHealthyThresholdCount
@@ -482,13 +483,25 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 		healthCheckProtocol = "HTTPS"
 	}
 
+	tgAttrList := make(cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttributeList, 0, 2)
+
+	tgAttrList = append(tgAttrList,
+		cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute{
+			Key:   cloudformation.String("deregistration_delay.timeout_seconds"),
+			Value: cloudformation.String(fmt.Sprintf("%d", spec.deregistrationDelayTimeoutSeconds)),
+		})
+
+	// Gate it behind spec.nlbProxyProtocolV2 as well to prevent changes to existing stacks
+	if spec.loadbalancerType == LoadBalancerTypeNetwork && spec.nlbProxyProtocolV2 {
+		tgAttrList = append(tgAttrList,
+			cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute{
+				Key:   cloudformation.String("proxy_protocol_v2.enabled"),
+				Value: cloudformation.String(fmt.Sprintf("%t", spec.nlbProxyProtocolV2)),
+			})
+	}
+
 	targetGroup := &cloudformation.ElasticLoadBalancingV2TargetGroup{
-		TargetGroupAttributes: &cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttributeList{
-			{
-				Key:   cloudformation.String("deregistration_delay.timeout_seconds"),
-				Value: cloudformation.String(fmt.Sprintf("%d", spec.deregistrationDelayTimeoutSeconds)),
-			},
-		},
+		TargetGroupAttributes:      &tgAttrList,
 		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
 		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),
 		HealthCheckPort:            cloudformation.Ref(parameterTargetGroupHealthCheckPortParameter).String(),

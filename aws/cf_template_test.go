@@ -709,6 +709,97 @@ func TestGenerateTemplate(t *testing.T) {
 				assert.Equal(t, cloudformation.String("ip"), tg.TargetType)
 			},
 		},
+		{
+			name: "NLB PROXY protocol version 2 can be enabled for Network Load Balancers",
+			spec: &stackSpec{
+				loadbalancerType:   LoadBalancerTypeNetwork,
+				nlbProxyProtocolV2: true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+
+				properties := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				attributes := []cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute(*properties.TargetGroupAttributes)
+
+				// Convert to a map to make the test position independent
+				kv := make(map[string]string, len(attributes))
+				for _, a := range attributes {
+					_, alreadyExists := kv[a.Key.Literal]
+					require.False(t, alreadyExists, fmt.Sprintf("Duplicate key %s in attribute list.", a.Key.Literal))
+					kv[a.Key.Literal] = a.Value.Literal
+				}
+
+				require.Contains(t, kv, "proxy_protocol_v2.enabled")
+				require.Equal(t, "true", kv["proxy_protocol_v2.enabled"])
+			},
+		},
+		{
+			name: "NLB PROXY protocol version 2 is disabled by default for Application Load Balancers",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+
+				properties := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				attributes := []cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute(*properties.TargetGroupAttributes)
+
+				// Convert to a map to make the test position independent
+				kv := make(map[string]string, len(attributes))
+				for _, a := range attributes {
+					_, alreadyExists := kv[a.Key.Literal]
+					require.False(t, alreadyExists, fmt.Sprintf("Duplicate key %s in attribute list.", a.Key.Literal))
+					kv[a.Key.Literal] = a.Value.Literal
+				}
+
+				require.NotContains(t, kv, "proxy_protocol_v2.enabled")
+			},
+		},
+		{
+			name: "NLB PROXY protocol version 2 is disabled by default for Network Load Balancers",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+
+				properties := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				attributes := []cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute(*properties.TargetGroupAttributes)
+
+				// Convert to a map to make the test position independent
+				kv := make(map[string]string, len(attributes))
+				for _, a := range attributes {
+					_, alreadyExists := kv[a.Key.Literal]
+					require.False(t, alreadyExists, fmt.Sprintf("Duplicate key %s in attribute list.", a.Key.Literal))
+					kv[a.Key.Literal] = a.Value.Literal
+				}
+
+				require.NotContains(t, kv, "proxy_protocol_v2.enabled")
+			},
+		},
+		{
+			name: "NLB PROXY protocol version 2 is always disabled for Application Load Balancers",
+			spec: &stackSpec{
+				loadbalancerType:   LoadBalancerTypeApplication,
+				nlbProxyProtocolV2: true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+
+				properties := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				attributes := []cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute(*properties.TargetGroupAttributes)
+
+				// Convert to a map to make the test position independent
+				kv := make(map[string]string, len(attributes))
+				for _, a := range attributes {
+					_, alreadyExists := kv[a.Key.Literal]
+					require.False(t, alreadyExists, fmt.Sprintf("Duplicate key %s in attribute list.", a.Key.Literal))
+					kv[a.Key.Literal] = a.Value.Literal
+				}
+
+				require.NotContains(t, kv, "proxy_protocol_v2.enabled")
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)
