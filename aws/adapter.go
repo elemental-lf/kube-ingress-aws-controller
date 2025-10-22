@@ -47,6 +47,7 @@ type Adapter struct {
 	nlbHealthyThresholdCount    uint
 	targetType                  elbv2Types.TargetTypeEnum
 	targetPort                  uint
+	nlbTargetPort               uint
 	albHTTPTargetPort           uint
 	nlbHTTPTargetPort           uint
 	targetHTTPS                 bool
@@ -342,6 +343,12 @@ func (a *Adapter) WithNlbHealthyThresholdCount(count uint) *Adapter {
 // the resources created by the adapter
 func (a *Adapter) WithTargetPort(port uint) *Adapter {
 	a.targetPort = port
+	return a
+}
+
+// WithNLBTargetPort configures the NLB HTTPS target port
+func (a *Adapter) WithNLBTargetPort(port uint) *Adapter {
+	a.nlbTargetPort = port
 	return a
 }
 
@@ -811,7 +818,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		albUnhealthyThresholdCount:        a.albUnhealthyThresholdCount,
 		nlbHealthyThresholdCount:          a.nlbHealthyThresholdCount,
 		targetType:                        a.targetType,
-		targetPort:                        a.targetPort,
+		targetPort:                        a.targetPortFromLBType(loadBalancerType),
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
 		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
@@ -869,7 +876,7 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		albUnhealthyThresholdCount:        a.albUnhealthyThresholdCount,
 		nlbHealthyThresholdCount:          a.nlbHealthyThresholdCount,
 		targetType:                        a.targetType,
-		targetPort:                        a.targetPort,
+		targetPort:                        a.targetPortFromLBType(loadBalancerType),
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
 		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
@@ -901,6 +908,15 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 	}
 
 	return updateStack(ctx, a.cloudformation, spec)
+}
+
+func (a *Adapter) targetPortFromLBType(loadBalancerType string) uint {
+	if loadBalancerType == LoadBalancerTypeApplication {
+		return a.targetPort
+	} else if loadBalancerType == LoadBalancerTypeNetwork && a.nlbTargetPort != 0 {
+		return a.nlbTargetPort
+	}
+	return a.targetPort
 }
 
 func (a *Adapter) httpTargetPort(loadBalancerType string) uint {

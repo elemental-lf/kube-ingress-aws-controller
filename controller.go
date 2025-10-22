@@ -46,6 +46,7 @@ var (
 	targetPort                    uint
 	albHTTPTargetPort             uint
 	nlbHTTPTargetPort             uint
+	nlbTargetPort                 uint
 	targetHTTPS                   bool
 	metricsAddress                string
 	disableSNISupport             bool
@@ -127,6 +128,8 @@ func loadSettings() error {
 		UintVar(&albHTTPTargetPort)
 	kingpin.Flag("nlb-http-target-port", "Sets the target port for NLB HTTP listener different from --target-port. Requires --nlb-http-enabled.").
 		UintVar(&nlbHTTPTargetPort)
+	kingpin.Flag("nlb-target-port", "Sets the target port for NLB HTTPS listener different from --target-port.").
+		UintVar(&nlbTargetPort)
 	kingpin.Flag("target-https", "sets the target protocol to https").
 		Default("false").BoolVar(&targetHTTPS)
 	kingpin.Flag("health-check-interval", "sets the health check interval for the created target groups. The flag accepts a value acceptable to time.ParseDuration").
@@ -248,6 +251,10 @@ func loadSettings() error {
 		return fmt.Errorf("invalid NLB HTTP target port: %d. please use a valid TCP port", nlbHTTPTargetPort)
 	}
 
+	if nlbTargetPort > 65535 { // default 0
+		return fmt.Errorf("invalid NLB HTTPS target port: %d. please use a valid TCP port", nlbTargetPort)
+	}
+
 	if nlbHTTPTargetPort > 0 && !nlbHTTPEnabled {
 		return fmt.Errorf("NLB HTTP is not enabled")
 	}
@@ -329,6 +336,7 @@ func main() {
 		WithAlbUnhealthyThresholdCount(albUnhealthyThresholdCount).
 		WithNlbHealthyThresholdCount(nlbHealthyThresholdCount).
 		WithTargetPort(targetPort).
+		WithNLBTargetPort(nlbTargetPort).
 		WithALBHTTPTargetPort(albHTTPTargetPort).
 		WithNLBHTTPTargetPort(nlbHTTPTargetPort).
 		WithTargetHTTPS(targetHTTPS).
