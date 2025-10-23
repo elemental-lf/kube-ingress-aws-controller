@@ -779,85 +779,8 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(ctx context.Context, st
 	}
 }
 
-// CreateStack creates a new Application Load Balancer using CloudFormation.
-// The stack name is derived from the Cluster ID and a has of the certificate
-// ARNs (when available).
-// All the required resources (listeners and target group) are created in a
-// transactional fashion.
-// Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
-	certARNs := make(map[string]time.Time, len(certificateARNs))
-	for _, arn := range certificateARNs {
-		certARNs[arn] = time.Time{}
-	}
-
-	if sslPolicy == "" {
-		sslPolicy = a.sslPolicy
-	}
-
-	if _, ok := SSLPolicies[sslPolicy]; !ok {
-		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
-	}
-
-	spec := &stackSpec{
-		name:            a.stackName(),
-		scheme:          scheme,
-		ownerIngress:    owner,
-		certificateARNs: certARNs,
-		securityGroupID: securityGroup,
-		subnets:         a.FindLBSubnets(scheme),
-		vpcID:           a.VpcID(),
-		clusterID:       a.ClusterID(),
-		healthCheck: &healthCheck{
-			path:     a.healthCheckPath,
-			port:     a.healthCheckPort,
-			interval: a.healthCheckInterval,
-			timeout:  a.healthCheckTimeout,
-		},
-		albHealthyThresholdCount:          a.albHealthyThresholdCount,
-		albUnhealthyThresholdCount:        a.albUnhealthyThresholdCount,
-		nlbHealthyThresholdCount:          a.nlbHealthyThresholdCount,
-		targetType:                        a.targetType,
-		targetPort:                        a.targetPortFromLBType(loadBalancerType),
-		targetHTTPS:                       a.targetHTTPS,
-		httpDisabled:                      a.httpDisabled(loadBalancerType),
-		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
-		timeoutInMinutes:                  int32(a.creationTimeout.Minutes()),
-		stackTerminationProtection:        a.stackTerminationProtection,
-		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
-		deregistrationDelayTimeoutSeconds: uint(a.deregistrationDelayTimeout.Seconds()),
-		controllerID:                      a.controllerID,
-		sslPolicy:                         sslPolicy,
-		ipAddressType:                     ipAddressType,
-		loadbalancerType:                  loadBalancerType,
-		albLogsS3Bucket:                   a.albLogsS3Bucket,
-		albLogsS3Prefix:                   a.albLogsS3Prefix,
-		wafWebAclId:                       wafWebACLID,
-		cwAlarms:                          cwAlarms,
-		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
-		nlbCrossZone:                      a.nlbCrossZone,
-		nlbProxyProtocolV2:                a.nlbProxyProtocolV2Enabled,
-		nlbZoneAffinity:                   a.nlbZoneAffinity,
-		http2:                             http2,
-		tags:                              a.stackTags,
-		internalDomains:                   a.internalDomains,
-		denyInternalDomains:               a.denyInternalDomains,
-		denyInternalDomainsResponse: denyResp{
-			body:        a.denyInternalRespBody,
-			statusCode:  a.denyInternalRespStatusCode,
-			contentType: a.denyInternalRespContentType,
-		},
-	}
-
-	return createStack(ctx, a.cloudformation, spec)
-}
-
-func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
-	if _, ok := SSLPolicies[sslPolicy]; !ok {
-		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
-	}
-
-	spec := &stackSpec{
+func (a *Adapter) buildStackSpec(stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) *stackSpec {
+	return &stackSpec{
 		name:            stackName,
 		scheme:          scheme,
 		ownerIngress:    owner,
@@ -906,6 +829,39 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 			contentType: a.denyInternalRespContentType,
 		},
 	}
+}
+
+// CreateStack creates a new Application Load Balancer using CloudFormation.
+// The stack name is derived from the Cluster ID and a has of the certificate
+// ARNs (when available).
+// All the required resources (listeners and target group) are created in a
+// transactional fashion.
+// Failure to create the stack causes it to be deleted automatically.
+func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+	certARNs := make(map[string]time.Time, len(certificateARNs))
+	for _, arn := range certificateARNs {
+		certARNs[arn] = time.Time{}
+	}
+
+	if sslPolicy == "" {
+		sslPolicy = a.sslPolicy
+	}
+
+	if _, ok := SSLPolicies[sslPolicy]; !ok {
+		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
+	}
+
+	spec := a.buildStackSpec(a.stackName(), certARNs, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID, cwAlarms, loadBalancerType, http2)
+
+	return createStack(ctx, a.cloudformation, spec)
+}
+
+func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+	if _, ok := SSLPolicies[sslPolicy]; !ok {
+		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
+	}
+
+	spec := a.buildStackSpec(stackName, certificateARNs, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID, cwAlarms, loadBalancerType, http2)
 
 	return updateStack(ctx, a.cloudformation, spec)
 }
