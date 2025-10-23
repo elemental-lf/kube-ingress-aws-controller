@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -926,6 +927,80 @@ func TestWithTargetPort(t *testing.T) {
 		port := uint(9977)
 		b := a.WithTargetPort(port)
 		require.Equal(t, port, b.targetPort)
+	})
+}
+
+func TestWithNLBTargetPort(t *testing.T) {
+	t.Run("WithNLBTargetPort sets the nlbTargetPort property", func(t *testing.T) {
+		a := Adapter{}
+		port := uint(9977)
+		b := a.WithNLBTargetPort(port)
+		require.Equal(t, port, b.nlbTargetPort)
+	})
+}
+
+func TestTargetPortFromLBType(t *testing.T) {
+	t.Run("targetPortFromLBType returns correct port depending on LB type", func(t *testing.T) {
+		albPort := uint(9977)
+		nlbPort := uint(9999)
+		a := Adapter{}
+		actualPort := a.WithTargetPort(albPort).WithNLBTargetPort(nlbPort).targetPortFromLBType(LoadBalancerTypeApplication)
+		require.Equal(t, albPort, actualPort)
+		a = Adapter{}
+		actualPort = a.WithTargetPort(albPort).WithNLBTargetPort(nlbPort).targetPortFromLBType(LoadBalancerTypeNetwork)
+		require.Equal(t, nlbPort, actualPort)
+		a = Adapter{}
+		actualPort = a.WithTargetPort(albPort).targetPortFromLBType(LoadBalancerTypeNetwork)
+		require.Equal(t, albPort, actualPort)
+	})
+}
+
+func TestBuildStackSpecNLBTargetPort(t *testing.T) {
+	t.Run("BuildStackSpec sets spec.targetPort to targetPort if nlbTargetPort is set for ALBs", func(t *testing.T) {
+		a := &Adapter{
+			manifest: &manifest{
+				vpcID:     "vpcId",
+				clusterID: "clusterId",
+				subnets:   []*subnetDetails{},
+			},
+		}
+
+		albPort := uint(9977)
+		nlbPort := uint(9999)
+
+		spec := a.WithTargetPort(albPort).WithNLBTargetPort(nlbPort).buildStackSpec("stackName", map[string]time.Time{}, "scheme", "securityGroup", "owner", "sslPolicy", "ipAddressType", "wafWebACLID", CloudWatchAlarmList{}, LoadBalancerTypeApplication, false)
+		require.Equal(t, albPort, spec.targetPort)
+	})
+
+	t.Run("BuildStackSpec sets spec.targetPort to nlbTargetPort if nlbTargetPort is set for NLBs ", func(t *testing.T) {
+		a := &Adapter{
+			manifest: &manifest{
+				vpcID:     "vpcId",
+				clusterID: "clusterId",
+				subnets:   []*subnetDetails{},
+			},
+		}
+
+		albPort := uint(9977)
+		nlbPort := uint(9999)
+
+		spec := a.WithTargetPort(albPort).WithNLBTargetPort(nlbPort).buildStackSpec("stackName", map[string]time.Time{}, "scheme", "securityGroup", "owner", "sslPolicy", "ipAddressType", "wafWebACLID", CloudWatchAlarmList{}, LoadBalancerTypeNetwork, false)
+		require.Equal(t, nlbPort, spec.targetPort)
+	})
+
+	t.Run("BuildStackSpec defaults spec.targetPort to targetPort if nlbTargetPort is not set for NLBs", func(t *testing.T) {
+		a := &Adapter{
+			manifest: &manifest{
+				vpcID:     "vpcId",
+				clusterID: "clusterId",
+				subnets:   []*subnetDetails{},
+			},
+		}
+
+		albPort := uint(9977)
+
+		spec := a.WithTargetPort(albPort).buildStackSpec("stackName", map[string]time.Time{}, "scheme", "securityGroup", "owner", "sslPolicy", "ipAddressType", "wafWebACLID", CloudWatchAlarmList{}, LoadBalancerTypeNetwork, false)
+		require.Equal(t, albPort, spec.targetPort)
 	})
 }
 
