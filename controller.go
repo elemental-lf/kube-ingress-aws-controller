@@ -38,6 +38,7 @@ var (
 	certPollingInterval           time.Duration
 	healthCheckPath               string
 	healthCheckPort               uint
+	nlbHealthCheckPort            uint
 	healthCheckInterval           time.Duration
 	healthCheckTimeout            time.Duration
 	albHealthyThresholdCount      uint
@@ -122,6 +123,7 @@ func loadSettings() error {
 		Default(aws.DefaultHealthCheckPath).StringVar(&healthCheckPath)
 	kingpin.Flag("health-check-port", "sets the health check port for the created target groups").
 		Default(strconv.FormatUint(aws.DefaultHealthCheckPort, 10)).UintVar(&healthCheckPort)
+	kingpin.Flag("nlb-health-check-port", "Sets the health check port for the created target groups for NLBs").UintVar(&nlbHealthCheckPort)
 	kingpin.Flag("target-port", "sets the target port for the created target groups").
 		Default(strconv.FormatUint(aws.DefaultTargetPort, 10)).UintVar(&targetPort)
 	kingpin.Flag("alb-http-target-port", "Sets the target port for ALB HTTP listener different from --target-port.").
@@ -233,6 +235,10 @@ func loadSettings() error {
 		return fmt.Errorf("invalid health check port: %d. please use a valid TCP port", healthCheckPort)
 	}
 
+	if nlbHealthCheckPort > 65535 {
+		return fmt.Errorf("invalid NLB health check port: %d. please use a valid TCP port", nlbHealthCheckPort)
+	}
+
 	for _, v := range []uint{albHealthyThresholdCount, albUnhealthyThresholdCount, nlbHealthyThresholdCount} {
 		if v < 2 || v > 10 {
 			return fmt.Errorf("invalid (un)healthy threshold: %d. must be between 2 and 10", v)
@@ -330,6 +336,7 @@ func main() {
 	awsAdapter = awsAdapter.
 		WithHealthCheckPath(healthCheckPath).
 		WithHealthCheckPort(healthCheckPort).
+		WithNLBHealthCheckPort(nlbHealthCheckPort).
 		WithHealthCheckInterval(healthCheckInterval).
 		WithHealthCheckTimeout(healthCheckTimeout).
 		WithAlbHealthyThresholdCount(albHealthyThresholdCount).

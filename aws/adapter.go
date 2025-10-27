@@ -40,6 +40,7 @@ type Adapter struct {
 	manifest                    *manifest
 	healthCheckPath             string
 	healthCheckPort             uint
+	nlbHealthCheckPort          uint
 	healthCheckInterval         time.Duration
 	healthCheckTimeout          time.Duration
 	albHealthyThresholdCount    uint
@@ -315,6 +316,13 @@ func (a *Adapter) WithHealthCheckPath(path string) *Adapter {
 // the resources created by the adapter
 func (a *Adapter) WithHealthCheckPort(port uint) *Adapter {
 	a.healthCheckPort = port
+	return a
+}
+
+// WithNLBHealthCheckPort returns the receiver adapter after changing the NLB health check port that will be used by
+// the resources created by the adapter
+func (a *Adapter) WithNLBHealthCheckPort(port uint) *Adapter {
+	a.nlbHealthCheckPort = port
 	return a
 }
 
@@ -781,20 +789,15 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(ctx context.Context, st
 
 func (a *Adapter) buildStackSpec(stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) *stackSpec {
 	return &stackSpec{
-		name:            stackName,
-		scheme:          scheme,
-		ownerIngress:    owner,
-		certificateARNs: certificateARNs,
-		securityGroupID: securityGroup,
-		subnets:         a.FindLBSubnets(scheme),
-		vpcID:           a.VpcID(),
-		clusterID:       a.ClusterID(),
-		healthCheck: &healthCheck{
-			path:     a.healthCheckPath,
-			port:     a.healthCheckPort,
-			interval: a.healthCheckInterval,
-			timeout:  a.healthCheckTimeout,
-		},
+		name:                              stackName,
+		scheme:                            scheme,
+		ownerIngress:                      owner,
+		certificateARNs:                   certificateARNs,
+		securityGroupID:                   securityGroup,
+		subnets:                           a.FindLBSubnets(scheme),
+		vpcID:                             a.VpcID(),
+		clusterID:                         a.ClusterID(),
+		healthCheck:                       a.healthCheckFromLBType(loadBalancerType),
 		albHealthyThresholdCount:          a.albHealthyThresholdCount,
 		albUnhealthyThresholdCount:        a.albUnhealthyThresholdCount,
 		nlbHealthyThresholdCount:          a.nlbHealthyThresholdCount,
@@ -889,6 +892,20 @@ func (a *Adapter) httpDisabled(loadBalancerType string) bool {
 		return !a.nlbHTTPEnabled
 	}
 	return false
+}
+
+func (a *Adapter) healthCheckFromLBType(loadBalancerType string) *healthCheck {
+	healthCheckPort := a.healthCheckPort
+	if loadBalancerType == LoadBalancerTypeNetwork && a.nlbHealthCheckPort != 0 {
+		healthCheckPort = a.nlbHealthCheckPort
+	}
+
+	return &healthCheck{
+		path:     a.healthCheckPath,
+		port:     healthCheckPort,
+		interval: a.healthCheckInterval,
+		timeout:  a.healthCheckTimeout,
+	}
 }
 
 func (a *Adapter) stackName() string {

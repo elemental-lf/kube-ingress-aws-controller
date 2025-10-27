@@ -1004,6 +1004,80 @@ func TestBuildStackSpecNLBTargetPort(t *testing.T) {
 	})
 }
 
+func TestWithNLBHealthCheckPort(t *testing.T) {
+	t.Run("WithNLBHealthCheckPort sets the nlbHealthCheckPort property", func(t *testing.T) {
+		a := Adapter{}
+		port := uint(9933)
+		b := a.WithNLBHealthCheckPort(port)
+		require.Equal(t, port, b.nlbHealthCheckPort)
+	})
+}
+
+func TestHealthCheckFromLBType(t *testing.T) {
+	t.Run("healthCheckFromLBType returns correct port depending on LB type", func(t *testing.T) {
+		albPort := uint(9911)
+		nlbPort := uint(9922)
+		a := Adapter{}
+		actualPort := a.WithHealthCheckPort(albPort).WithNLBHealthCheckPort(nlbPort).healthCheckFromLBType(LoadBalancerTypeApplication).port
+		require.Equal(t, albPort, actualPort)
+		a = Adapter{}
+		actualPort = a.WithHealthCheckPort(albPort).WithNLBHealthCheckPort(nlbPort).healthCheckFromLBType(LoadBalancerTypeNetwork).port
+		require.Equal(t, nlbPort, actualPort)
+		a = Adapter{}
+		actualPort = a.WithHealthCheckPort(albPort).healthCheckFromLBType(LoadBalancerTypeNetwork).port
+		require.Equal(t, albPort, actualPort)
+	})
+}
+
+func TestBuildStackSpecNLBHealthCheckPort(t *testing.T) {
+	t.Run("BuildStackSpec sets spec.healthCheck.port to healthCheckPort if nlbHealthCheckPort is set for ALBs", func(t *testing.T) {
+		a := &Adapter{
+			manifest: &manifest{
+				vpcID:     "vpcId",
+				clusterID: "clusterId",
+				subnets:   []*subnetDetails{},
+			},
+		}
+
+		albPort := uint(9911)
+		nlbPort := uint(9922)
+
+		spec := a.WithHealthCheckPort(albPort).WithNLBHealthCheckPort(nlbPort).buildStackSpec("stackName", map[string]time.Time{}, "scheme", "securityGroup", "owner", "sslPolicy", "ipAddressType", "wafWebACLID", CloudWatchAlarmList{}, LoadBalancerTypeApplication, false)
+		require.Equal(t, albPort, spec.healthCheck.port)
+	})
+
+	t.Run("BuildStackSpec sets spec.healthCheck.port to nlbHealthCheckPort if nlbHealthCheckPort is set for NLBs ", func(t *testing.T) {
+		a := &Adapter{
+			manifest: &manifest{
+				vpcID:     "vpcId",
+				clusterID: "clusterId",
+				subnets:   []*subnetDetails{},
+			},
+		}
+
+		albPort := uint(9911)
+		nlbPort := uint(9922)
+
+		spec := a.WithHealthCheckPort(albPort).WithNLBHealthCheckPort(nlbPort).buildStackSpec("stackName", map[string]time.Time{}, "scheme", "securityGroup", "owner", "sslPolicy", "ipAddressType", "wafWebACLID", CloudWatchAlarmList{}, LoadBalancerTypeNetwork, false)
+		require.Equal(t, nlbPort, spec.healthCheck.port)
+	})
+
+	t.Run("BuildStackSpec defaults spec.healthCheck.port to healthCheckPort if nlbHealthCheckPort is not set for NLBs", func(t *testing.T) {
+		a := &Adapter{
+			manifest: &manifest{
+				vpcID:     "vpcId",
+				clusterID: "clusterId",
+				subnets:   []*subnetDetails{},
+			},
+		}
+
+		albPort := uint(9911)
+
+		spec := a.WithHealthCheckPort(albPort).buildStackSpec("stackName", map[string]time.Time{}, "scheme", "securityGroup", "owner", "sslPolicy", "ipAddressType", "wafWebACLID", CloudWatchAlarmList{}, LoadBalancerTypeNetwork, false)
+		require.Equal(t, albPort, spec.healthCheck.port)
+	})
+}
+
 func TestWithTargetHTTPS(t *testing.T) {
 	t.Run("WithTargetHTTPS sets the targetHTTPS property", func(t *testing.T) {
 		a := Adapter{}
