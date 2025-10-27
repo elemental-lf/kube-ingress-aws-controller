@@ -37,6 +37,7 @@ This information is used to manage AWS resources for each ingress objects of the
    - enable and disable cross zone traffic: `--nlb-cross-zone=false`
    - set zone affinity to resolve DNS to same zone: `--nlb-zone-affinity=availability_zone_affinity`, see also [NLB attributes](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html\#load-balancer-attributes) and [NLB zonal DNS affinity](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html\#zonal-dns-affinity)
 - Support for explicitly enable certificates by using certificate Tags `--cert-filter-tag=key=value`
+- Support for PROXY protocol version 2 when using NLBs: `--nlb-proxy-protocol-v2`
 
 ## Upgrade
 
@@ -692,11 +693,28 @@ By default the port 9999 is used as both health check and target port. This
 means that Skipper or any other traffic router you're using needs to be
 listening on that port.
 
-If you want to change the default ports, you can control it using the
-`-target-port` and `-health-check-port` flags.
+If you want to change the default ports, you can control them using the
+following flags:
 
-If you want to use an HTTPS enabled target port, use the `-target-https` flag.
+| Flag                    | Default                         | Description                                                 |
+|-------------------------|---------------------------------|-------------------------------------------------------------|
+| --target-port           | 9999                            | Default port for all listeners unless overridden            |
+| --nlb-target-port       | Defaults to --target-port       | NLB HTTPS listener target port                              |
+| --health-check-port     | 9999                            | Default health check port unless overridden                 |
+| --nlb-health-check-port | Defaults to --health-check-port | NLB health check port                                       |
+| --alb-http-target-port  | Defaults to --target-port       | ALB HTTP listener target port                               |
+| --nlb-http-target-port  | Defaults to --target-port       | NLB HTTP listener target port (needs `--nlb-http-enabled`)  |
+
+If you want to use an HTTPS enabled target port, use the `--target-https` flag.
 This will only affect ALBs, NLBs ignore this flag.
+
+If `--nlb-proxy-protocol-v2` is enabled and an NLB is used, the NLB is configured to send a
+[PROXY protocol version 2](https://www.haproxy.org/download/3.3/doc/proxy-protocol.txt) header
+on connections to the target and health check ports.
+The traffic router needs to be configured to accept this header and can derive the original
+source IP address from its contents. To use a mix of ALBs and NLBs in such a setup set
+`--nlb-target-port`, `--nlb-health-check-port`,  and `--nlb-http-target-port` (if applicable)
+to a different port or set of ports as the port(s) used for ALBs.
 
 ## HTTP to HTTPS Redirection
 
