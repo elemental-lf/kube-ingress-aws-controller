@@ -252,6 +252,14 @@ func generateTemplate(spec *stackSpec) (string, error) {
 				)
 			}
 		} else if spec.loadbalancerType == LoadBalancerTypeNetwork {
+			// This mimics ALPN settings on ALBs
+			var alpnPolicy string
+			if spec.http2 {
+				alpnPolicy = "HTTP2Preferred"
+			} else {
+				alpnPolicy = "HTTP1Only"
+			}
+
 			template.AddResource("HTTPSListener", &cloudformation.ElasticLoadBalancingV2Listener{
 				DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 					{
@@ -268,6 +276,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 				Port:            cloudformation.Integer(443),
 				Protocol:        cloudformation.String("TLS"),
 				SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
+				AlpnPolicy:      cloudformation.StringList(cloudformation.String(alpnPolicy)),
 			})
 		}
 

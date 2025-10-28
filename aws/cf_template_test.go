@@ -800,6 +800,63 @@ func TestGenerateTemplate(t *testing.T) {
 				require.NotContains(t, kv, "proxy_protocol_v2.enabled")
 			},
 		},
+		{
+			name: "ALPN policy is HTTP2Preferred if spec.http2 is true",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				http2:            true,
+				httpDisabled:     true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPSListener")
+
+				resource := template.Resources["HTTPSListener"]
+				listener, ok := resource.Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
+				require.True(t, ok, "Wrong type")
+
+				require.Equal(t, cloudformation.StringList(cloudformation.String("HTTP2Preferred")), listener.AlpnPolicy)
+			},
+		},
+		{
+			name: "ALPN policy is HTTP1Only if spec.http2 is false",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				http2:            false,
+				httpDisabled:     true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPSListener")
+
+				resource := template.Resources["HTTPSListener"]
+				listener, ok := resource.Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
+				require.True(t, ok, "Wrong type")
+
+				require.Equal(t, cloudformation.StringList(cloudformation.String("HTTP1Only")), listener.AlpnPolicy)
+			},
+		},
+		{
+			name: "ALPN policy is nil for ALBs",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				http2:            true,
+				httpDisabled:     true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPSListener")
+
+				resource := template.Resources["HTTPSListener"]
+				listener, ok := resource.Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
+				require.True(t, ok, "Wrong type")
+
+				require.Equal(t, (*cloudformation.StringListExpr)(nil), listener.AlpnPolicy)
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)
