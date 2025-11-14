@@ -857,6 +857,19 @@ func TestGenerateTemplate(t *testing.T) {
 				require.Equal(t, (*cloudformation.StringListExpr)(nil), listener.AlpnPolicy)
 			},
 		},
+		{
+			name: "Security group parameter is set for NLBs",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				resource := template.Resources["LB"]
+				lb, ok := resource.Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				require.True(t, ok, "Wrong type")
+
+				require.Equal(t, cloudformation.Ref(parameterLoadBalancerSecurityGroupParameter).StringList(), lb.SecurityGroups)
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)

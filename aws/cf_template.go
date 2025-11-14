@@ -382,10 +382,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		},
 	}
 
-	// Security groups can't be set for 'network' load balancers
-	if spec.loadbalancerType != LoadBalancerTypeNetwork {
-		lb.SecurityGroups = cloudformation.Ref(parameterLoadBalancerSecurityGroupParameter).StringList()
-	}
+	lb.SecurityGroups = cloudformation.Ref(parameterLoadBalancerSecurityGroupParameter).StringList()
 
 	// TODO(mlarsen): hack to only set type on "new" stacks where this
 	// features was enabled. Adding the Type value for existing Load

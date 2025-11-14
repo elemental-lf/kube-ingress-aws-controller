@@ -131,6 +131,9 @@
                 "Scheme": {
                     "Ref": "LoadBalancerSchemeParameter"
                 },
+                "SecurityGroups": {
+                    "Ref": "LoadBalancerSecurityGroupParameter"
+                },
                 "Subnets": {
                     "Ref": "LoadBalancerSubnetsParameter"
                 },
