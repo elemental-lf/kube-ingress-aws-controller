@@ -38,6 +38,7 @@ This information is used to manage AWS resources for each ingress objects of the
    - set zone affinity to resolve DNS to same zone: `--nlb-zone-affinity=availability_zone_affinity`, see also [NLB attributes](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html\#load-balancer-attributes) and [NLB zonal DNS affinity](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html\#zonal-dns-affinity)
 - Support for explicitly enable certificates by using certificate Tags `--cert-filter-tag=key=value`
 - Support for PROXY protocol version 2 when using NLBs: `--nlb-proxy-protocol-v2`
+- Support for TLS Application-Layer Protocol Negotiation (ALPN) on both ALBs and NLBs
 
 ## Upgrade
 
@@ -187,18 +188,18 @@ The controller supports both [Application Load Balancers][alb] and [Network
 Load Balancers][nlb]. Below is an overview of which features can be used with
 the individual Load Balancer types.
 
-| Feature                                 | Application Load Balancer                      | Network Load Balancer                    |
-|-----------------------------------------|------------------------------------------------|------------------------------------------|
-| HTTPS                                   | :heavy_check_mark:                             | :heavy_check_mark:                       |
-| HTTP                                    | :heavy_check_mark:                             | :heavy_check_mark: `--nlb-http-enabled`  |
-| HTTP -> HTTPS redirect                  | :heavy_check_mark: `--redirect-http-to-https`  | :heavy_multiplication_x:                 |
-| [Cross Zone Load Balancing][cross_zone] | :heavy_check_mark: (only option)               | :heavy_check_mark: `--nlb-cross-zone`    |
-| [Zone Affinity][zone_affinity]          | :heavy_multiplication_x:                       | :heavy_check_mark: `--nlb-zone-affinity` |
-| [Dualstack support][dualstack]          | :heavy_check_mark: `--ip-addr-type=dualstack`  | :heavy_multiplication_x:                 |
-| [Idle Timeout][idle_timeout]            | :heavy_check_mark: `--idle-connection-timeout` | :heavy_multiplication_x:                 |
-| Custom Security Group                   | :heavy_check_mark:                             | :heavy_multiplication_x:                 |
-| Web Application Firewall (WAF)          | :heavy_check_mark:                             | :heavy_multiplication_x:                 |
-| HTTP/2 Support                          | :white_check_mark:                             | (not relevant)                           |
+| Feature                                 | Application Load Balancer                      | Network Load Balancer                           |
+|-----------------------------------------|------------------------------------------------|-------------------------------------------------|
+| HTTPS                                   | :heavy_check_mark:                             | :heavy_check_mark:                              |
+| HTTP                                    | :heavy_check_mark:                             | :heavy_check_mark: `--nlb-http-enabled`         |
+| HTTP -> HTTPS redirect                  | :heavy_check_mark: `--redirect-http-to-https`  | :heavy_multiplication_x:                        |
+| [Cross Zone Load Balancing][cross_zone] | :heavy_check_mark: (only option)               | :heavy_check_mark: `--nlb-cross-zone`           |
+| [Zone Affinity][zone_affinity]          | :heavy_multiplication_x:                       | :heavy_check_mark: `--nlb-zone-affinity`        |
+| [Dualstack support][dualstack]          | :heavy_check_mark: `--ip-addr-type=dualstack`  | :heavy_multiplication_x:                        |
+| [Idle Timeout][idle_timeout]            | :heavy_check_mark: `--idle-connection-timeout` | :heavy_multiplication_x:                        |
+| Custom Security Group                   | :heavy_check_mark:                             | :heavy_multiplication_x:                        |
+| Web Application Firewall (WAF)          | :heavy_check_mark:                             | :heavy_multiplication_x:                        |
+| HTTP/2 Support                          | :heavy_check_mark:                             | :heavy_check_mark: (see NLB ALPN Support below) |
 
 To facilitate default load balancer type switch from Application to Network when the default load balancer type is Network
 (`--load-balancer-type="network"`) and Custom Security Group (`zalando.org/aws-load-balancer-security-group`) or
@@ -766,6 +767,17 @@ being managed through a target group type is `ip`, which means there is no neces
 | `AWSCNI`    |   `true`    |  `true`  | PodIP == HostIP: limited scaling and host bound        |
 | `AWSCNI`    |   `false`   |  `true`  | PodIP != HostIP: limited scaling and host bound        |
 | `AWSCNI`    |   `false`   | `false`  | free scaling, pod VPC CNI IP used                      |
+
+## NLB ALPN Support
+
+When an NLB is used in a TLS configuration, it advertises both HTTP/2 (preferred) and HTTP/1.* by default  
+(ALPN policy `HTTP2Preferred`). If HTTP/2 is disabled via the `zalando.org/aws-load-balancer-http2` annotation,  
+the NLB will advertise only HTTP/1.* (ALPN policy `HTTP1Only`). The ALPN policies `HTTP2Optional` and `HTTP2Only`  
+are not supported by the controller at the moment, even though they are supported by NLBs in general.
+
+If an NLB is using the `HTTP2Preferred` policy, HTTP/2 connections are passed through directly to the targets. 
+This differs from ALB behavior, where connections to targets always use HTTP/1.* because the controller configures 
+the target group accordingly.
 
 ## Trying it out
 
